@@ -1,20 +1,42 @@
-th {
+th, td {
   border: 2px solid #125d98;
   padding: 0.2rem;
   border-radius: 0.2rem;
 }
 
-.input {
-  width: 2rem;
-  background-color: hex;
+td {
+  min-width: 1rem;
+  text-align: center;
 }
 
-.signals {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  padding-bottom: 2rem;
+input {
+  width: 2rem;
 }
+
+.tableValue {
+  max-width: 30vw;
+  overflow-x: scroll;
+}
+
 
 main {
   padding: 2rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.signal {
+  margin: 2rem;
+}
+
+
+.inputConstant {
+  width: 4rem;
+  margin: 2rem;
+  margin-bottom: 0;
+}
+
+.operations {
+  display: grid;
+  grid-template-columns: auto 1fr;
 }
