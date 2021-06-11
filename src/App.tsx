@@ -1,49 +1,85 @@
 import { useState, Dispatch, SetStateAction, useEffect, useRef } from "react"
 import Plot from "react-plotly.js"
-import { ReactMic, ReactMicStopEvent } from "react-mic"
 
 import styles from "./App.module.css"
 
 type signal = { data: Array<number>; offset: number }
 
-const Mic = ({ set }: { set: (signal: signal) => void }) => {
+const Mic = ({ set }: { set: (id: number, signal: signal) => void }) => {
   const [playing, setPlaying] = useState(false)
+  const downloadRef = useRef<HTMLAnchorElement | null>(null)
 
-  const handleInfo = async (e: ReactMicStopEvent) => {
-    console.log(e)
-    const a = await e.blob.arrayBuffer()
-    const b = new Uint8Array(a)
+  const [id, setID] = useState<1 | 2>(1)
 
-    const signal = { data: Array.from(b), offset: 0 }
-    console.log(signal)
-    set(signal)
-  }
+  useEffect(() => {
+    if (playing) {
+      const streamRef = { current: null } as { current: null | MediaStream }
+      navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(stream => {
+        const recordedChunks = [] as Array<Blob>
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" })
+
+        mediaRecorder.addEventListener("dataavailable", ({ data }) => {
+          if (data.size > 0) recordedChunks.push(data)
+        })
+
+        mediaRecorder.addEventListener("stop", () => {
+          if (!downloadRef.current) return
+
+          const blob = new Blob(recordedChunks)
+          downloadRef.current.href = URL.createObjectURL(blob)
+          downloadRef.current.download = "test.wav"
+
+          const audioContext = new AudioContext()
+
+          const reader = new FileReader()
+          reader.onload = () =>
+            audioContext.decodeAudioData(reader.result as ArrayBuffer, decodedDone)
+
+          reader.readAsArrayBuffer(blob)
+          const decodedDone: DecodeSuccessCallback = (decoded: AudioBuffer) => {
+            let dataFloats = new Float32Array(decoded.length)
+            dataFloats = decoded.getChannelData(0)
+
+            const data = Array.from(dataFloats).slice(2_000, 6_000)
+            set(id, { data, offset: 0 })
+          }
+        })
+
+        mediaRecorder.start()
+        streamRef.current = stream
+        console.log("creating new stream", stream.id)
+      })
+
+      return () => {
+        console.log("cleaning stream", streamRef.current!.id)
+        streamRef.current?.getTracks().forEach(t => t.stop())
+      }
+    }
+  }, [playing, set])
 
   return (
     <>
-      <h2>Add new signal</h2>
-      <ReactMic
-        record={playing}
-        onStop={handleInfo}
-        strokeColor="#dddddd"
-        backgroundColor="#125d98"
-      />
-      <button
-        onClick={() =>
-          setPlaying(playing => {
-            if (playing) return false
-            setTimeout(() => {
-              setTimeout(() => setPlaying(false), 100)
-              setPlaying(true)
-            }, 500)
-
-            return false
-          })
-        }
-        type="button"
-      >
-        {playing ? "Playing..." : "Play"}
-      </button>
+      <h2>Record from Mic for signal {id}</h2>
+      <section className={styles.mic}>
+        <form>
+          <div>
+            <input type="radio" defaultChecked={true} name="id" onClick={() => setID(1)} />
+            <span>signal 1</span>
+          </div>
+          <div>
+            <input type="radio" name="id" onClick={() => setID(2)} />
+            <span>signal 2</span>
+          </div>
+        </form>
+        <div>
+          <a href="/" ref={downloadRef}>
+            Download current recording
+          </a>
+        </div>
+        <button onClick={() => setPlaying(p => !p)} type="button">
+          {playing ? "Recording..." : "Record"}
+        </button>
+      </section>
     </>
   )
 }
@@ -62,6 +98,10 @@ const Signal = ({ title, signal, setSignal }: SignalProps) => {
       input.current.value = ""
     }
   }, [adding])
+
+  if (signal.data.includes(NaN)) {
+    return null
+  }
 
   const x = signal.data.map((_, i) => i - signal.offset)
   const y = signal.data
@@ -337,13 +377,14 @@ const Convolution = ({ signal1, signal2 }: ConvolutionProps) => {
   )
 }
 
-const randomArray = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).map((v, i) => (
-  Math.sin(i * 1000000)
-))
+const randomArray = (n: number) =>
+  Array.from({ length: n }, () => Math.floor(Math.random() * 10)).map((v, i) =>
+    Math.sin(i * 1000000)
+  )
 
 const App = () => {
   const [signal1, setSignal1] = useState<signal>({ data: randomArray(100), offset: 30 })
-  const [signal2, setSignal2] = useState<signal>({ data: randomArray(150), offset: 30 })
+  const [signal2, setSignal2] = useState<signal>({ data: randomArray(100), offset: 30 })
 
   const [operation, setOperation] = useState("add")
 
@@ -355,7 +396,7 @@ const App = () => {
       </div>
       <div>
         <div className={styles.tableValue}>
-          <Mic set={setSignal1} />
+          <Mic set={(id, signal) => (id === 1 ? setSignal1(signal) : setSignal2(signal))} />
         </div>
         <form>
           <h2>Operations</h2>
