@@ -39,8 +39,13 @@ const Mic = ({ set }: { set: (id: number, signal: signal) => void }) => {
             let dataFloats = new Float32Array(decoded.length)
             dataFloats = decoded.getChannelData(0)
 
-            const data = Array.from(dataFloats).slice(2_000, 7_000)
-            set(id, { data, offset: 0 })
+            const data = Array.from(dataFloats)
+            const data2 = []
+
+            for (let i = 0; i < data.length; i += 10) {
+              data2.push(data[i])
+            }
+            set(id, { data: data2, offset: 0 })
           }
         })
 
@@ -171,7 +176,7 @@ const Signal = ({ title, signal, setSignal }: SignalProps) => {
         onClick={() => {
           let audioCtx = new AudioContext()
 
-          let myArrayBuffer = audioCtx.createBuffer(1, signal.data.length, audioCtx.sampleRate / 3)
+          let myArrayBuffer = audioCtx.createBuffer(1, signal.data.length, audioCtx.sampleRate / 10)
 
           for (let channel = 0; channel < myArrayBuffer.numberOfChannels; channel++) {
             var nowBuffering = myArrayBuffer.getChannelData(channel)
@@ -404,8 +409,11 @@ const randomArray = (n: number) =>
   )
 
 const App = () => {
-  const [signal1, setSignal1] = useState<signal>({ data: randomArray(100), offset: 30 })
-  const [signal2, setSignal2] = useState<signal>({ data: randomArray(100), offset: 30 })
+  const [signal1, setSignal1] = useState<signal>({
+    data: [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2],
+    offset: 1,
+  })
+  const [signal2, setSignal2] = useState<signal>({ data: randomArray(3), offset: 1 })
 
   const [operation, setOperation] = useState("add")
 
