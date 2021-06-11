@@ -10,8 +10,8 @@ const Mic = ({ set }: { set: (signal: signal) => void }) => {
   const [playing, setPlaying] = useState(false)
 
   const handleInfo = async (e: ReactMicStopEvent) => {
-    const a = await e.blob.arrayBuffer()
     console.log(e)
+    const a = await e.blob.arrayBuffer()
     const b = new Uint8Array(a)
 
     const signal = { data: Array.from(b), offset: 0 }
@@ -33,7 +33,7 @@ const Mic = ({ set }: { set: (signal: signal) => void }) => {
           setPlaying(playing => {
             if (playing) return false
             setTimeout(() => {
-              setTimeout(() => setPlaying(false), 400)
+              setTimeout(() => setPlaying(false), 100)
               setPlaying(true)
             }, 500)
 
@@ -232,11 +232,118 @@ const AmpliationAtenuation = ({ inputSignal }: { inputSignal: signal }) => {
   )
 }
 
-const randomArray = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10))
+const Reflex = ({ inputSignal }: { inputSignal: signal }) => {
+  const newData = [...inputSignal.data]
+  newData.reverse()
+
+  return (
+    <>
+      <Signal
+        title="Reflex(S1)"
+        signal={{ data: newData, offset: newData.length - 1 - inputSignal.offset }}
+      />
+    </>
+  )
+}
+
+const Move = ({ inputSignal }: { inputSignal: signal }) => {
+  const [constant, setConstant] = useState(2)
+
+  const newData = [...inputSignal.data]
+  return (
+    <>
+      <input
+        className={styles.inputConstant}
+        step={1}
+        onChange={e => setConstant(+e.target.value)}
+        type="number"
+        value={constant}
+      />
+      <Signal
+        title={`Move(S1, by ${constant})`}
+        signal={{ data: newData, offset: inputSignal.offset - constant }}
+      />
+    </>
+  )
+}
+
+const Interpolation = ({ inputSignal }: { inputSignal: signal }) => {
+  const [steps, setConstant] = useState(2)
+  const newData = []
+
+  const n = steps < 1 ? Math.round(1 / steps) : steps
+
+  if (steps < 1) {
+    for (let i = 0; i < inputSignal.data.length; ++i) {
+      if (i % n === 0) {
+        newData.push(inputSignal.data[i])
+      }
+    }
+  } else {
+    for (let i = 0; i < inputSignal.data.length; ++i) {
+      let [y1, y2] = [inputSignal.data[i], inputSignal.data[i + 1]]
+      if (i === inputSignal.data.length - 1) y2 = y1
+      const distance = y2 - y1
+
+      for (let n = 0; n < steps; ++n) {
+        newData.push(y1 + (n / steps) * distance)
+      }
+    }
+    if (steps !== 1) {
+      newData.pop()
+    }
+  }
+
+  return (
+    <>
+      <input
+        className={styles.inputConstant}
+        min={0}
+        onChange={e => setConstant(+e.target.value)}
+        type="number"
+        value={steps}
+      />
+      <Signal
+        title={`${steps < 1 ? "Diesmacion" : "Interpolation"}(S1, by ${n})`}
+        signal={{ data: newData, offset: inputSignal.offset * n }}
+      />
+    </>
+  )
+}
+
+const Convolution = ({ signal1, signal2 }: ConvolutionProps) => {
+  let result = {} as Record<string, number>
+  let aux = {} as Record<string, number>
+  let offset = signal1.offset + signal2.offset
+
+  let auxa = 0
+  let auxb = 0
+  for (let i = 0; i < signal2.data.length; i++, auxa++) {
+    for (let j = 0; j < signal1.data.length; j++, auxb++) {
+      aux[`${j + auxa}`] = signal2.data[i] * signal1.data[j]
+      result[`${j + auxa}`] = (result[j + auxa] ?? 0) + (aux[j + auxa] ?? 0)
+    }
+  }
+
+  const data = []
+  for (const index in result) {
+    data[+index] = result[index]
+  }
+
+  return (
+    <>
+      <Signal title="Convolution(S1, S2)" signal={{ data, offset }} />
+    </>
+  )
+}
+
+const randomArray = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).map((v, i) => (
+  Math.sin(i * 1000000)
+))
 
 const App = () => {
-  const [signal1, setSignal1] = useState<signal>({ data: randomArray(20), offset: 10 })
-  const [signal2, setSignal2] = useState<signal>({ data: randomArray(30), offset: 12 })
+  const [signal1, setSignal1] = useState<signal>({ data: randomArray(100), offset: 30 })
+  const [signal2, setSignal2] = useState<signal>({ data: randomArray(150), offset: 30 })
 
   const [operation, setOperation] = useState("add")
 
@@ -268,14 +375,27 @@ const App = () => {
             <input type="radio" name="operation" onClick={() => setOperation("ampl")} />
             <label>AmpliationAtenuation</label>
 
+            <input type="radio" name="operation" onClick={() => setOperation("reflex")} />
+            <label>Reflex</label>
+
+            <input type="radio" name="operation" onClick={() => setOperation("move")} />
+            <label>Move</label>
+
             <input type="radio" name="operation" onClick={() => setOperation("intr")} />
-            <label>Interpolation</label>
+            <label>Interpolate / Dismation</label>
+
+            <input type="radio" name="operation" onClick={() => setOperation("conv")} />
+            <label>Convolution</label>
           </div>
         </form>
 
         {operation === "add" && <Sum signal1={signal1} signal2={signal2} />}
         {operation === "rest" && <Rest signal1={signal1} signal2={signal2} />}
         {operation === "ampl" && <AmpliationAtenuation inputSignal={signal1} />}
+        {operation === "reflex" && <Reflex inputSignal={signal1} />}
+        {operation === "move" && <Move inputSignal={signal1} />}
+        {operation === "intr" && <Interpolation inputSignal={signal1} />}
+        {operation === "conv" && <Convolution signal1={signal1} signal2={signal2} />}
       </div>
     </main>
   )
