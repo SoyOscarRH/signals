@@ -1,6 +1,5 @@
 import { useState, Dispatch, SetStateAction, useEffect, useRef } from "react"
 import Plot from "react-plotly.js"
-
 import styles from "./App.module.css"
 
 type signal = { data: Array<number>; offset: number }
@@ -40,7 +39,7 @@ const Mic = ({ set }: { set: (id: number, signal: signal) => void }) => {
             let dataFloats = new Float32Array(decoded.length)
             dataFloats = decoded.getChannelData(0)
 
-            const data = Array.from(dataFloats).slice(2_000, 6_000)
+            const data = Array.from(dataFloats).slice(2_000, 7_000)
             set(id, { data, offset: 0 })
           }
         })
@@ -55,7 +54,7 @@ const Mic = ({ set }: { set: (id: number, signal: signal) => void }) => {
         streamRef.current?.getTracks().forEach(t => t.stop())
       }
     }
-  }, [playing, set])
+  }, [playing, id, set])
 
   return (
     <>
@@ -167,6 +166,28 @@ const Signal = ({ title, signal, setSignal }: SignalProps) => {
           </table>
         </div>
       )}
+
+      <h2
+        onClick={() => {
+          let audioCtx = new AudioContext()
+
+          let myArrayBuffer = audioCtx.createBuffer(1, signal.data.length, audioCtx.sampleRate / 3)
+
+          for (let channel = 0; channel < myArrayBuffer.numberOfChannels; channel++) {
+            var nowBuffering = myArrayBuffer.getChannelData(channel)
+            for (var i = 0; i < myArrayBuffer.length; i++) {
+              nowBuffering[i] = signal.data[i]
+            }
+          }
+
+          var source = audioCtx.createBufferSource()
+          source.buffer = myArrayBuffer
+          source.connect(audioCtx.destination)
+          source.start()
+        }}
+      >
+        Play it
+      </h2>
       <div>
         <Plot
           data={[
